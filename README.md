@@ -11,3 +11,14 @@ A fully deployment-ready API discovery gateway available in both **Go** and **Py
 - Postman collection with smoke-test scripts
 - Docker + Docker Compose — single-command deployment
 - GitHub Actions CI/CD — test, build, publish, and verify
+
+- ## Endpoints Summary
+
+| Method | Path | Auth Required | Purpose |
+| --- | --- | --- | --- |
+| GET | /health | No | Health check for probes |
+| GET | /apis | No | List all discovered routes |
+| GET | /openapi.json | No | OpenAPI 3.0 specification |
+| GET | /api/v1/data | Yes (Bearer) | Protected example data |
+| GET | /api/v1/users | Yes (Bearer) | List users |
+| POST | /api/v1/users | Yes (Bearer) | Create a user |
