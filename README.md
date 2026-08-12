@@ -22,3 +22,10 @@ A fully deployment-ready API discovery gateway available in both **Go** and **Py
 | GET | /api/v1/data | Yes (Bearer) | Protected example data |
 | GET | /api/v1/users | Yes (Bearer) | List users |
 | POST | /api/v1/users | Yes (Bearer) | Create a user |
+
+# .github/workflows/ci.yml
+- Test Go: go vet + build
+- Test Python: py_compile
+- Build & push Docker images (GitHub Container Registry)
+- Smoke test: curl /apis, /openapi.json
+- Run Postman collection via Newman action
