@@ -1,0 +1,71 @@
+from flask import Flask, request, jsonify
+from datetime import datetime, timezone
+import threading, os, logging
+
+app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("badger")
+_registry = []
+_lock = threading.RLock()
+
+def register_api(method, path, handler, desc="", auth=False, rate=0, tags=None):
+    with _lock:
+        _registry.append({"method": method, "path": path, "handlerName": handler,
+                          "description": desc, "authRequired": auth, "rateLimit": rate,
+                          "tags": tags or [], "createdAt": datetime.now(timezone.utc).isoformat()})
+
+def list_routes():
+    with _lock: return list(_registry)
+
+@app.before_request
+def log_req(): logger.info(f"{request.method} {request.path}")
+
+def require_auth(f):
+    from functools import wraps
+    @wraps(f)
+    def d(*a, **kw):
+        t = request.headers.get("Authorization", "")
+        if not t.startswith("Bearer "):
+            return jsonify({"error": "missing or invalid Authorization header"}), 401
+        return f(*a, **kw)
+    return d
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "healthy", "time": datetime.now(timezone.utc).isoformat()})
+
+@app.route("/apis")
+def list_apis():
+    r = list_routes()
+    return jsonify({"name": "Badger", "version": "1.0.0", "count": len(r), "routes": r})
+
+@app.route("/openapi.json")
+def openapi():
+    paths = {}
+    for rt in list_routes():
+        p = rt["path"]
+        if p not in paths: paths[p] = {}
+        for m in rt["method"].lower().split(","):
+            op = {"summary": rt["handlerName"], "description": rt.get("description", "")}
+            if rt["authRequired"]: op["security"] = [{"bearerAuth": []}]
+            op["responses"] = {"200": "OK"}
+            paths[p][m] = op
+    return jsonify({"openapi": "3.0.3", "info": {"title": "Badger", "version": "1.0.0"}, "paths": paths})
+
+@app.route("/api/v1/users", methods=["GET", "POST"])
+@require_auth
+def users():
+    if request.method == "GET":
+        return jsonify({"users": [{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}]})
+    elif request.method == "POST":
+        p = request.get_json(silent=True)
+        if p is None: return jsonify({"error": "invalid JSON"}), 400
+        return jsonify({"status": "created", "user": p}), 201
+
+register_api("GET", "/health", "HealthCheck", "Service health")
+register_api("GET", "/apis", "ListAPIs", "Discover endpoints")
+register_api("GET", "/openapi.json", "OpenAPI", "Spec generation")
+register_api("GET,POST", "/api/v1/users", "Users", "User CRUD", auth=True)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
